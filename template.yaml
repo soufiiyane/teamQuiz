@@ -9,6 +9,24 @@ Parameters:
     Type: String
     Default: "team-quiz"
     Description: "The domain name for the Cognito User Pool."
+  DBUsername:
+    Type: String
+    Default: "admin"
+    Description: "The database master username."
+  DBPassword:
+    Type: String
+    Default: "SoufiyaneSoufiyane"
+    NoEcho: true
+    Description: "The database master password."
+  AuroraUsername:
+    Type: String
+    Default: "admin"
+    Description: "The Aurora Serverless database master username."
+  AuroraPassword:
+    Type: String
+    Default: "admin"
+    NoEcho: true
+    Description: "The Aurora Serverless database master password."
 
 Resources:
 
@@ -106,6 +124,47 @@ Resources:
             Path: /hello
             Method: get
             RestApiId: !Ref teamQuizApi
+
+  AuroraServerlessCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: aurora-mysql
+      EngineMode: serverless
+      DatabaseName: booksdb
+      MasterUsername: !Ref AuroraUsername
+      MasterUserPassword: !Ref AuroraPassword
+      EnableHttpEndpoint: true
+    DeletionPolicy: Delete
+
+  AuroraServerlessSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Aurora Serverless credentials
+      SecretString: !Sub '{"username":"admin","password":"admin"}'
+
+  InitializeDatabaseFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: app.lambda_handler
+      Runtime: python3.10
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: quizdb
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - rds-data:ExecuteStatement
+                - rds-data:BatchExecuteStatement
+              Resource: !GetAtt AuroraServerlessCluster.DBClusterArn
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Ref AuroraServerlessSecret
 
 Outputs:
   ApiUrl:
