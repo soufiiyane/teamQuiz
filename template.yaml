@@ -9,6 +9,10 @@ Parameters:
     Type: String
     Default: "team-quiz"
     Description: "The domain name for the Cognito User Pool."
+  AuroraDBName:
+    Type: String
+    Default: "teamquiz"
+    Description: "The Aurora Serverless database master username."
   AuroraUsername:
     Type: String
     Default: "admin"
@@ -102,26 +106,12 @@ Resources:
           MyCognitoAuthorizer:
             UserPoolArn: !GetAtt teamQuizUserPool.Arn
 
-  HelloWorldFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: src/
-      Handler: app.lambda_handler
-      Runtime: python3.10
-      Events:
-        HelloWorld:
-          Type: Api
-          Properties:
-            Path: /hello
-            Method: get
-            RestApiId: !Ref teamQuizApi
-
   AuroraServerlessCluster:
     Type: AWS::RDS::DBCluster
     Properties:
       Engine: aurora-mysql
       EngineMode: serverless
-      DatabaseName: booksdb
+      DatabaseName: !Ref AuroraDBName
       MasterUsername: !Ref AuroraUsername
       MasterUserPassword: !Ref AuroraPassword
       EnableHttpEndpoint: true
@@ -141,29 +131,468 @@ Resources:
           "password": "${AuroraPassword}"
         }
 
+  RDSLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: AuroraAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds-data:BatchExecuteStatement
+                  - rds-data:BeginTransaction
+                  - rds-data:CommitTransaction
+                  - rds-data:ExecuteStatement
+                  - rds-data:RollbackTransaction
+                Resource: !Sub 'arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraServerlessCluster}'
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref AuroraServerlessSecret
+
   InitializeDatabaseFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: src/
-      Handler: app.lambda_handler
+      Handler: initializeDatabase.lambda_handler
       Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
       Environment:
         Variables:
           CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
           SECRET_ARN: !Ref AuroraServerlessSecret
-          DB_NAME: quizdb
-      Policies:
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - rds-data:ExecuteStatement
-                - rds-data:BatchExecuteStatement
-              Resource: !GetAtt AuroraServerlessCluster.DBClusterArn
-            - Effect: Allow
-              Action:
-                - secretsmanager:GetSecretValue
-              Resource: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
+
+  CreateCompanyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/company/
+      Handler: create.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        CreateCompany:
+          Type: Api
+          Properties:
+            Path: /company
+            Method: post
+            RestApiId: !Ref teamQuizApi
+
+  ReadCompanyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/company/
+      Handler: read.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        ReadCompany:
+          Type: Api
+          Properties:
+            Path: /company/{companyId}
+            Method: get
+            RestApiId: !Ref teamQuizApi
+
+  UpdateCompanyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/company/
+      Handler: update.lambda_handlerf
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        UpdateCompany:
+          Type: Api
+          Properties:
+            Path: /company/{companyId}
+            Method: put
+            RestApiId: !Ref teamQuizApi
+
+  DeleteCompanyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/company/
+      Handler: delete.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        DeleteCompany:
+          Type: Api
+          Properties:
+            Path: /company/{companyId}
+            Method: delete
+            RestApiId: !Ref teamQuizApi
+
+  CreateProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/profile/
+      Handler: create.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        CreateProfile:
+          Type: Api
+          Properties:
+            Path: /profile
+            Method: post
+            RestApiId: !Ref teamQuizApi
+
+  ReadProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/profile/
+      Handler: read.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        ReadProfile:
+          Type: Api
+          Properties:
+            Path: /profile/{profileId}
+            Method: get
+            RestApiId: !Ref teamQuizApi
+
+  UpdateProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/profile/
+      Handler: update.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        UpdateProfile:
+          Type: Api
+          Properties:
+            Path: /profile/{profileId}
+            Method: put
+            RestApiId: !Ref teamQuizApi
+
+  DeleteProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/profile/
+      Handler: delete.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        DeleteProfile:
+          Type: Api
+          Properties:
+            Path: /profile/{profileId}
+            Method: delete
+            RestApiId: !Ref teamQuizApi
+
+  CreateJobFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/job/
+      Handler: create.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        CreateJob:
+          Type: Api
+          Properties:
+            Path: /job
+            Method: post
+            RestApiId: !Ref teamQuizApi
+
+  ReadJobFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/job/
+      Handler: read.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        ReadJob:
+          Type: Api
+          Properties:
+            Path: /job/{jobId}
+            Method: get
+            RestApiId: !Ref teamQuizApi
+
+  UpdateJobFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/job/
+      Handler: update.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        UpdateJob:
+          Type: Api
+          Properties:
+            Path: /job/{jobId}
+            Method: put
+            RestApiId: !Ref teamQuizApi
+
+  DeleteJobFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/job/
+      Handler: delete.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        DeleteJob:
+          Type: Api
+          Properties:
+            Path: /job/{jobId}
+            Method: delete
+            RestApiId: !Ref teamQuizApi
+
+  CreateApplicationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/application/
+      Handler: create.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        CreateApplication:
+          Type: Api
+          Properties:
+            Path: /application
+            Method: post
+            RestApiId: !Ref teamQuizApi
+
+  ReadApplicationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/application/
+      Handler: read.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        ReadApplication:
+          Type: Api
+          Properties:
+            Path: /application/{applicationId}
+            Method: get
+            RestApiId: !Ref teamQuizApi
+
+  UpdateApplicationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/application/
+      Handler: update.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        UpdateApplication:
+          Type: Api
+          Properties:
+            Path: /application/{applicationId}
+            Method: put
+            RestApiId: !Ref teamQuizApi
+
+  DeleteApplicationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/application/
+      Handler: delete.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        DeleteApplication:
+          Type: Api
+          Properties:
+            Path: /application/{applicationId}
+            Method: delete
+            RestApiId: !Ref teamQuizApi
+
+  CreateResumeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/resume/
+      Handler: create.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        CreateResume:
+          Type: Api
+          Properties:
+            Path: /resume
+            Method: post
+            RestApiId: !Ref teamQuizApi
+
+  ReadResumeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/resume/
+      Handler: read.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        ReadResume:
+          Type: Api
+          Properties:
+            Path: /resume/{resumeId}
+            Method: get
+            RestApiId: !Ref teamQuizApi
+
+  UpdateResumeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/resume/
+      Handler: update.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        UpdateResume:
+          Type: Api
+          Properties:
+            Path: /resume/{resumeId}
+            Method: put
+            RestApiId: !Ref teamQuizApi
+
+  DeleteResumeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/resume/
+      Handler: delete.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        DeleteResume:
+          Type: Api
+          Properties:
+            Path: /resume/{resumeId}
+            Method: delete
+            RestApiId: !Ref teamQuizApi
+
+  CreateQuizFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/quiz/
+      Handler: create.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        CreateQuiz:
+          Type: Api
+          Properties:
+            Path: /quiz
+            Method: post
+            RestApiId: !Ref teamQuizApi
+
+  ReadQuizFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/quiz/
+      Handler: read.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        ReadQuiz:
+          Type: Api
+          Properties:
+            Path: /quiz/{quizId}
+            Method: get
+            RestApiId: !Ref teamQuizApi
+
+  UpdateQuizFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/quiz/
+      Handler: update.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        UpdateQuiz:
+          Type: Api
+          Properties:
+            Path: /quiz/{quizId}
+            Method: put
+            RestApiId: !Ref teamQuizApi
+
+  DeleteQuizFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/quiz/
+      Handler: delete.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        DeleteQuiz:
+          Type: Api
+          Properties:
+            Path: /quiz/{quizId}
+            Method: delete
+            RestApiId: !Ref teamQuizApi
+
+  CreateQuestionsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/questions/
+      Handler: create.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        CreateQuestions:
+          Type: Api
+          Properties:
+            Path: /questions
+            Method: post
+            RestApiId: !Ref teamQuizApi
+
+  ReadQuestionsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/questions/
+      Handler: read.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        ReadQuestions:
+          Type: Api
+          Properties:
+            Path: /questions/{questionsId}
+            Method: get
+            RestApiId: !Ref teamQuizApi
+
+  UpdateQuestionsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/questions/
+      Handler: update.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        UpdateQuestions:
+          Type: Api
+          Properties:
+            Path: /questions/{questionsId}
+            Method: put
+            RestApiId: !Ref teamQuizApi
+
+  DeleteQuestionsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/questions/
+      Handler: delete.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
+      Events:
+        DeleteQuestions:
+          Type: Api
+          Properties:
+            Path: /questions/{questionsId}
+            Method: delete
+            RestApiId: !Ref teamQuizApi
 
 Outputs:
   ApiUrl:
