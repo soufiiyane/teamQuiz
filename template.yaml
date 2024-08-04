@@ -9,15 +9,6 @@ Parameters:
     Type: String
     Default: "team-quiz"
     Description: "The domain name for the Cognito User Pool."
-  DBUsername:
-    Type: String
-    Default: "admin"
-    Description: "The database master username."
-  DBPassword:
-    Type: String
-    Default: "SoufiyaneSoufiyane"
-    NoEcho: true
-    Description: "The database master password."
   AuroraUsername:
     Type: String
     Default: "admin"
@@ -134,13 +125,21 @@ Resources:
       MasterUsername: !Ref AuroraUsername
       MasterUserPassword: !Ref AuroraPassword
       EnableHttpEndpoint: true
+      ScalingConfiguration:
+        MinCapacity: 1
+        MaxCapacity: 64
+        AutoPause: false
     DeletionPolicy: Delete
 
   AuroraServerlessSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
       Description: Aurora Serverless credentials
-      SecretString: !Sub '{"username":"admin","password":"admin"}'
+      SecretString: !Sub |
+        {
+          "username": "${AuroraUsername}",
+          "password": "${AuroraPassword}"
+        }
 
   InitializeDatabaseFunction:
     Type: AWS::Serverless::Function
