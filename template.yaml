@@ -219,6 +219,11 @@ Resources:
             Path: /company
             Method: post
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   ReadCompanyFunction:
     Type: AWS::Serverless::Function
@@ -234,12 +239,18 @@ Resources:
             Path: /company/{companyId}
             Method: get
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
+
 
   UpdateCompanyFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: src/company/
-      Handler: update.lambda_handlerf
+      Handler: update.lambda_handler
       Runtime: python3.10
       Role: !GetAtt RDSLambdaRole.Arn
       Events:
@@ -249,6 +260,11 @@ Resources:
             Path: /company/{companyId}
             Method: put
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   DeleteCompanyFunction:
     Type: AWS::Serverless::Function
@@ -264,6 +280,11 @@ Resources:
             Path: /company/{companyId}
             Method: delete
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   CreateProfileFunction:
     Type: AWS::Serverless::Function
@@ -279,6 +300,11 @@ Resources:
             Path: /profile
             Method: post
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   ReadProfileFunction:
     Type: AWS::Serverless::Function
@@ -294,6 +320,11 @@ Resources:
             Path: /profile/{profileId}
             Method: get
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   UpdateProfileFunction:
     Type: AWS::Serverless::Function
@@ -309,6 +340,11 @@ Resources:
             Path: /profile/{profileId}
             Method: put
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   DeleteProfileFunction:
     Type: AWS::Serverless::Function
@@ -324,6 +360,11 @@ Resources:
             Path: /profile/{profileId}
             Method: delete
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   CreateJobFunction:
     Type: AWS::Serverless::Function
@@ -339,6 +380,11 @@ Resources:
             Path: /job
             Method: post
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   ReadJobFunction:
     Type: AWS::Serverless::Function
@@ -354,6 +400,11 @@ Resources:
             Path: /job/{jobId}
             Method: get
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   UpdateJobFunction:
     Type: AWS::Serverless::Function
@@ -369,6 +420,11 @@ Resources:
             Path: /job/{jobId}
             Method: put
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   DeleteJobFunction:
     Type: AWS::Serverless::Function
@@ -384,6 +440,11 @@ Resources:
             Path: /job/{jobId}
             Method: delete
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   CreateApplicationFunction:
     Type: AWS::Serverless::Function
@@ -399,6 +460,11 @@ Resources:
             Path: /application
             Method: post
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   ReadApplicationFunction:
     Type: AWS::Serverless::Function
@@ -414,6 +480,11 @@ Resources:
             Path: /application/{applicationId}
             Method: get
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   UpdateApplicationFunction:
     Type: AWS::Serverless::Function
@@ -429,6 +500,11 @@ Resources:
             Path: /application/{applicationId}
             Method: put
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   DeleteApplicationFunction:
     Type: AWS::Serverless::Function
@@ -444,6 +520,11 @@ Resources:
             Path: /application/{applicationId}
             Method: delete
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   CreateResumeFunction:
     Type: AWS::Serverless::Function
@@ -459,6 +540,11 @@ Resources:
             Path: /resume
             Method: post
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   ReadResumeFunction:
     Type: AWS::Serverless::Function
@@ -474,6 +560,11 @@ Resources:
             Path: /resume/{resumeId}
             Method: get
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   UpdateResumeFunction:
     Type: AWS::Serverless::Function
@@ -489,6 +580,11 @@ Resources:
             Path: /resume/{resumeId}
             Method: put
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   DeleteResumeFunction:
     Type: AWS::Serverless::Function
@@ -504,6 +600,11 @@ Resources:
             Path: /resume/{resumeId}
             Method: delete
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   CreateQuizFunction:
     Type: AWS::Serverless::Function
@@ -519,6 +620,11 @@ Resources:
             Path: /quiz
             Method: post
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   ReadQuizFunction:
     Type: AWS::Serverless::Function
@@ -534,6 +640,11 @@ Resources:
             Path: /quiz/{quizId}
             Method: get
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   UpdateQuizFunction:
     Type: AWS::Serverless::Function
@@ -549,6 +660,11 @@ Resources:
             Path: /quiz/{quizId}
             Method: put
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   DeleteQuizFunction:
     Type: AWS::Serverless::Function
@@ -564,6 +680,11 @@ Resources:
             Path: /quiz/{quizId}
             Method: delete
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   CreateQuestionsFunction:
     Type: AWS::Serverless::Function
@@ -579,6 +700,11 @@ Resources:
             Path: /questions
             Method: post
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   ReadQuestionsFunction:
     Type: AWS::Serverless::Function
@@ -594,6 +720,11 @@ Resources:
             Path: /questions/{questionsId}
             Method: get
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   UpdateQuestionsFunction:
     Type: AWS::Serverless::Function
@@ -609,6 +740,11 @@ Resources:
             Path: /questions/{questionsId}
             Method: put
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   DeleteQuestionsFunction:
     Type: AWS::Serverless::Function
@@ -624,6 +760,11 @@ Resources:
             Path: /questions/{questionsId}
             Method: delete
             RestApiId: !Ref teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
 Outputs:
   ApiUrl:
