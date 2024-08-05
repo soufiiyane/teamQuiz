@@ -12,7 +12,7 @@ Parameters:
   AuroraDBName:
     Type: String
     Default: "teamquiz"
-    Description: "The Aurora Serverless database master username."
+    Description: "The Aurora Serverless database name."
   AuroraUsername:
     Type: String
     Default: "admin"
@@ -22,6 +22,9 @@ Parameters:
     Default: "admin"
     NoEcho: true
     Description: "The Aurora Serverless database master password."
+  ResumeBucketName:
+    Type: String
+    Description: "The resume bucket name, it must be unique"
 
 Resources:
 
@@ -173,6 +176,34 @@ Resources:
           CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
           SECRET_ARN: !Ref AuroraServerlessSecret
           DB_NAME: !Ref AuroraDBName
+
+  MyS3BucketResume:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Ref ResumeBucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  MyS3BucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref MyS3BucketResume
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action:
+              - 's3:GetObject'
+            Resource: !Join
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref MyS3BucketResume
+                - '/*'
 
   CreateCompanyFunction:
     Type: AWS::Serverless::Function
@@ -614,3 +645,31 @@ Outputs:
   UserPoolHostUI:
     Description: "URL for Cognito User Pool Hosted UI"
     Value: !Sub "https://${DomainName}.auth.${AWS::Region}.amazoncognito.com/oauth2/authorize?response_type=code&client_id=${teamQuizUserPoolClient}&redirect_uri=http://localhost"
+
+  AuroraClusterEndpoint:
+    Description: "Endpoint of the Aurora Serverless Cluster"
+    Value: !GetAtt AuroraServerlessCluster.Endpoint.Address
+
+  AuroraClusterPort:
+    Description: "Port of the Aurora Serverless Cluster"
+    Value: !GetAtt AuroraServerlessCluster.Endpoint.Port
+
+  AuroraClusterArn:
+    Description: "ARN of the Aurora Serverless Cluster"
+    Value: !GetAtt AuroraServerlessCluster.DBClusterArn
+
+  AuroraSecretArn:
+    Description: "ARN of the Aurora Serverless Secret"
+    Value: !Ref AuroraServerlessSecret
+
+  ResumeBucketName:
+    Description: "Name of the S3 bucket for resumes"
+    Value: !Ref MyS3BucketResume
+
+  ResumeBucketUrl:
+    Description: "URL of the S3 bucket for resumes"
+    Value: !Sub "https://${MyS3BucketResume}.s3.amazonaws.com"
+
+  RDSLambdaRoleArn:
+    Description: "ARN of the IAM Role for Lambda functions to access RDS"
+    Value: !GetAtt RDSLambdaRole.Arn
