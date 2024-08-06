@@ -19,17 +19,23 @@ def lambda_handler(event, context):
         }
 
     try:
-        profile = get_profile(profile_id)
-
-        if profile:
-            return {
-                'statusCode': 200,
-                'body': json.dumps(profile)
-            }
+        database_exists = check_database_exists()
+        if database_exists:
+            profile = get_profile(profile_id)
+            if profile:
+                return {
+                    'statusCode': 200,
+                    'body': json.dumps(profile)
+                }
+            else:
+                return {
+                    'statusCode': 404,
+                    'body': json.dumps('Profile not found.')
+                }
         else:
             return {
                 'statusCode': 404,
-                'body': json.dumps('Profile not found.')
+                'body': json.dumps('Database "Profile" does not exist.')
             }
     except Exception as e:
         print(f"Error retrieving profile: {str(e)}")
@@ -37,6 +43,20 @@ def lambda_handler(event, context):
             'statusCode': 500,
             'body': json.dumps('Internal server error.')
         }
+
+def check_database_exists():
+    try:
+        response = rds_data_client.execute_statement(
+            resourceArn=cluster_arn,
+            secretArn=secret_arn,
+            database=database_name,
+            sql="SHOW TABLES LIKE 'Profile';"
+        )
+
+        return len(response['records']) > 0
+    except Exception as e:
+        print(f"Error checking database existence: {str(e)}")
+        raise
 
 
 def get_profile(profile_id):

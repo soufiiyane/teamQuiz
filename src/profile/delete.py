@@ -10,19 +10,39 @@ database_name = os.environ['DB_NAME']
 
 
 def lambda_handler(event, context):
-    print(event)
     profile_id = event['pathParameters']['profileId']
+    database_exists = check_database_exists()
 
-    if delete_profile(profile_id):
-        return {
-            'statusCode': 200,
-            'body': json.dumps(f'Profile with ID {profile_id} deleted successfully!')
-        }
+    if database_exists:
+        if delete_profile(profile_id):
+            return {
+                'statusCode': 200,
+                'body': json.dumps(f'Profile with ID {profile_id} deleted successfully!')
+            }
+        else:
+            return {
+                'statusCode': 404,
+                'body': json.dumps(f'Profile with ID {profile_id} not found.')
+            }
     else:
         return {
             'statusCode': 404,
-            'body': json.dumps(f'Profile with ID {profile_id} not found.')
+            'body': json.dumps('Database "Profile" does not exist.')
         }
+
+def check_database_exists():
+    try:
+        response = rds_data_client.execute_statement(
+            resourceArn=cluster_arn,
+            secretArn=secret_arn,
+            database=database_name,
+            sql="SHOW TABLES LIKE 'Profile';"
+        )
+
+        return len(response['records']) > 0
+    except Exception as e:
+        print(f"Error checking database existence: {str(e)}")
+        raise
 
 
 def delete_profile(profile_id):
