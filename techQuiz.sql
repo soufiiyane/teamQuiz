@@ -55,8 +55,8 @@ CREATE TABLE Questions (
     profileId INT,
     text TEXT NOT NULL,
     type VARCHAR(50),
-    options TEXT,
-    answer TEXT,
+    options JSON,
+    answer JSON,
     createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (profileId) REFERENCES Profile(profileId) ON DELETE SET NULL
