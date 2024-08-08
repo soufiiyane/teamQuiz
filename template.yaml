@@ -19,14 +19,31 @@ Parameters:
     Description: "The Aurora Serverless database master username."
   AuroraPassword:
     Type: String
-    Default: "admin"
-    NoEcho: true
+    Default: "Soufiyane"
     Description: "The Aurora Serverless database master password."
   ResumeBucketName:
     Type: String
     Description: "The resume bucket name, it must be unique"
 
 Resources:
+
+  PreSignUpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: app.lambda_handler
+      Runtime: python3.10
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaRole
+
+  PreSignUpFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref PreSignUpFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt teamQuizUserPool.Arn
 
   teamQuizUserPool:
     Type: AWS::Cognito::UserPool
@@ -56,6 +73,8 @@ Resources:
         EmailSendingAccount: COGNITO_DEFAULT
       EmailVerificationSubject: "Please verify your email address"
       EmailVerificationMessage: "Your verification code is {####}. Please enter this code to verify your email address."
+      LambdaConfig:
+        PreSignUp: !GetAtt PreSignUpFunction.Arn
 
   teamQuizUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
@@ -97,6 +116,14 @@ Resources:
     Properties:
       UserPoolId: !Ref teamQuizUserPool
       ClientId: 'ALL'
+
+  AdminUserGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: Admins
+      Description: Admin user group
+      Precedence: 0
+      UserPoolId: !Ref teamQuizUserPool
 
   teamQuizApi:
     Type: AWS::Serverless::Api

@@ -1,4 +1,4 @@
- -- Create User Table
+-- Create User Table
 CREATE TABLE User (
     userId INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -85,4 +85,16 @@ CREATE TABLE Application (
     FOREIGN KEY (userId) REFERENCES User(userId) ON DELETE CASCADE,
     FOREIGN KEY (jobId) REFERENCES Job(jobId) ON DELETE SET NULL,
     FOREIGN KEY (resumeId) REFERENCES Resume(resumeId) ON DELETE SET NULL
+);
+
+-- Create QuizHistory Table
+CREATE TABLE QuizHistory (
+    historyId INT AUTO_INCREMENT PRIMARY KEY,
+    userId INT,
+    quizId INT,
+    score DECIMAL(5, 2),
+    status VARCHAR(50),
+    date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (userId) REFERENCES User(userId) ON DELETE CASCADE,
+    FOREIGN KEY (quizId) REFERENCES Quiz(id) ON DELETE CASCADE
 );

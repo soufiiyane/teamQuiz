@@ -98,6 +98,18 @@ def lambda_handler(event, context):
             FOREIGN KEY (jobId) REFERENCES Job(jobId) ON DELETE SET NULL,
             FOREIGN KEY (resumeId) REFERENCES Resume(resumeId) ON DELETE SET NULL
         );
+        """,
+        """
+        CREATE TABLE QuizHistory (
+            historyId INT AUTO_INCREMENT PRIMARY KEY,
+            userId INT,
+            quizId INT,
+            score DECIMAL(5, 2),
+            status VARCHAR(50),
+            date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (userId) REFERENCES User(userId) ON DELETE CASCADE,
+            FOREIGN KEY (quizId) REFERENCES Quiz(id) ON DELETE CASCADE
+        );
         """
     ]
 
