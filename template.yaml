@@ -33,9 +33,15 @@ Resources:
       CodeUri: src/
       Handler: app.lambda_handler
       Runtime: python3.10
+      Role: !GetAtt RDSLambdaRole.Arn
       Policies:
         - AWSLambdaBasicExecutionRole
         - AWSLambdaRole
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
+          SECRET_ARN: !Ref AuroraServerlessSecret
+          DB_NAME: !Ref AuroraDBName
 
   PreSignUpFunctionPermission:
     Type: AWS::Lambda::Permission
