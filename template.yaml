@@ -486,6 +486,9 @@ Resources:
       Handler: create.lambda_handler
       Runtime: python3.10
       Role: !GetAtt RDSLambdaRole.Arn
+      Policies:
+        - S3FullAccessPolicy:
+            BucketName: MyS3BucketResume
       Events:
         CreateApplication:
           Type: Api
@@ -498,6 +501,8 @@ Resources:
           CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
           SECRET_ARN: !Ref AuroraServerlessSecret
           DB_NAME: !Ref AuroraDBName
+          RESUME_BUCKET: !Ref MyS3BucketResume
+
 
   ReadApplicationFunction:
     Type: AWS::Serverless::Function

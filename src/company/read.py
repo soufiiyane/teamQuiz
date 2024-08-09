@@ -70,7 +70,6 @@ def get_company(company_id):
         )
 
         if response['records']:
-            # Convert the response to a dictionary
             record = response['records'][0]
             company = {
                 'companyId': record[0]['longValue'],

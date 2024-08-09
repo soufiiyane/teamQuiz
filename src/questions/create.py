@@ -10,7 +10,6 @@ database_name = os.environ['DB_NAME']
 
 def lambda_handler(event, context):
     try:
-        # Ensure the table exists
         if not check_table_exists('Questions'):
             return {
                 'statusCode': 500,
@@ -24,7 +23,6 @@ def lambda_handler(event, context):
         options = body.get('options')
         answer = body.get('answer')
 
-        # Validate all required fields
         if profile_id is None:
             return {
                 'statusCode': 400,
@@ -51,7 +49,6 @@ def lambda_handler(event, context):
                 'body': json.dumps('Answer is required.')
             }
 
-        # Insert the question into the database
         insert_question(profile_id, text, q_type, options, answer)
         return {
             'statusCode': 200,

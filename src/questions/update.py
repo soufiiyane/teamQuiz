@@ -79,7 +79,6 @@ def update_question(question_id, text, q_type, options, answer):
             sql += "answer = :answer, "
             parameters.append({'name': 'answer', 'value': {'stringValue': json.dumps(answer)}})
 
-        # Remove trailing comma and space
         sql = sql.rstrip(', ')
         sql += " WHERE id = :id;"
         parameters.append({'name': 'id', 'value': {'longValue': int(question_id)}})
