@@ -13,15 +13,13 @@ s3_bucket_name = os.environ['RESUME_BUCKET']
 
 
 def lambda_handler(event, context):
-    print("Event:", event)  # Debugging statement
 
     try:
         body = json.loads(event.get('body', '{}'))
         user_id = body.get('userId')
         job_id = body.get('jobId')
-        resume_file = body.get('resumeFile')  # Assuming resumeFile is base64 encoded
+        resume_file = body.get('resumeFile')
 
-        # Check if fields are provided
         if user_id is None:
             return {
                 'statusCode': 400,
@@ -76,7 +74,6 @@ def lambda_handler(event, context):
 
 def upload_resume_to_s3(resume_file, user_id, job_id):
     try:
-        # Decode base64 encoded resume file
         resume_file_content = base64.b64decode(resume_file)
 
         resume_file_name = f"resumeteamquiz2024_{user_id}_{job_id}.pdf"
@@ -85,7 +82,7 @@ def upload_resume_to_s3(resume_file, user_id, job_id):
             Bucket=s3_bucket_name,
             Key=resume_file_name,
             Body=resume_file_content,
-            ContentType='application/pdf'  # Adjust MIME type if necessary
+            ContentType='application/pdf'
         )
 
         resume_url = f"https://{s3_bucket_name}.s3.amazonaws.com/{resume_file_name}"
@@ -110,6 +107,7 @@ def find_or_update_resume(user_id, job_id, resume_url):
                     {'name': 'userId', 'value': {'longValue': user_id}}
                 ]
             )
+
             existing_resumes = response['records']
 
             for record in existing_resumes:
@@ -157,7 +155,6 @@ def find_or_update_resume(user_id, job_id, resume_url):
                 ],
                 includeResultMetadata=True
             )
-            # Extract resumeId from the response
             resume_id = response['generatedFields'][0]['longValue']
             print(f"New resume record inserted with resumeId: {resume_id}")
             return resume_id
