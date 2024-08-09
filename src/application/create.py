@@ -38,7 +38,6 @@ def lambda_handler(event, context):
                 'body': json.dumps('resumeFile is required.')
             }
 
-        # Convert userId and jobId to integers
         try:
             user_id = int(user_id)
             job_id = int(job_id)
@@ -48,20 +47,6 @@ def lambda_handler(event, context):
                 'body': json.dumps('userId and jobId must be integers.')
             }
 
-        # Check if user and job exist
-        if not check_user_exists(user_id):
-            return {
-                'statusCode': 404,
-                'body': json.dumps('User not found.')
-            }
-
-        if not check_job_exists(job_id):
-            return {
-                'statusCode': 404,
-                'body': json.dumps('Job not found.')
-            }
-
-        # Upload resume to S3 and get the URL
         resume_url = upload_resume_to_s3(resume_file, user_id, job_id)
         if not resume_url:
             return {
@@ -69,15 +54,13 @@ def lambda_handler(event, context):
                 'body': json.dumps('Failed to upload resume.')
             }
 
-        # Create application with the retrieved resumeUrl
-        resume_id = upload_resume(user_id, job_id, resume_url)
+        resume_id = find_or_update_resume(user_id, job_id, resume_url)
         if not resume_id:
             return {
                 'statusCode': 500,
-                'body': json.dumps('Failed to upload resume record.')
+                'body': json.dumps('Failed to find or update resume record.')
             }
 
-        # Create application with the retrieved resumeId
         create_application(user_id, job_id, resume_id)
         return {
             'statusCode': 200,
@@ -96,10 +79,8 @@ def upload_resume_to_s3(resume_file, user_id, job_id):
         # Decode base64 encoded resume file
         resume_file_content = base64.b64decode(resume_file)
 
-        # Generate a unique file name
-        resume_file_name = f"resumeteamquiz2024_{user_id}_{job_id}.pdf"  # Adjust the extension based on your file type
+        resume_file_name = f"resumeteamquiz2024_{user_id}_{job_id}.pdf"
 
-        # Upload file to S3
         s3_client.put_object(
             Bucket=s3_bucket_name,
             Key=resume_file_name,
@@ -107,7 +88,6 @@ def upload_resume_to_s3(resume_file, user_id, job_id):
             ContentType='application/pdf'  # Adjust MIME type if necessary
         )
 
-        # Generate the S3 URL
         resume_url = f"https://{s3_bucket_name}.s3.amazonaws.com/{resume_file_name}"
         print(f"Resume uploaded successfully to S3 with URL: {resume_url}")
         return resume_url
@@ -116,26 +96,74 @@ def upload_resume_to_s3(resume_file, user_id, job_id):
         return None
 
 
-def upload_resume(user_id, job_id, resume_url):
+def find_or_update_resume(user_id, job_id, resume_url):
     try:
-        response = rds_data_client.execute_statement(
-            resourceArn=cluster_arn,
-            secretArn=secret_arn,
-            database=database_name,
-            sql="INSERT INTO Resume (userId, jobId, resumeUrl) VALUES (:userId, :jobId, :resumeUrl);",
-            parameters=[
-                {'name': 'userId', 'value': {'longValue': user_id}},
-                {'name': 'jobId', 'value': {'longValue': job_id}},
-                {'name': 'resumeUrl', 'value': {'stringValue': resume_url}}
-            ],
-            includeResultMetadata=True
-        )
-        # Extract resumeId from the response
-        resume_id = response['generatedFields'][0]['longValue']
-        print(f"Resume record uploaded successfully with resumeId: {resume_id}")
-        return resume_id
+        user_exists = check_user_exists(user_id)
+
+        if user_exists:
+            response = rds_data_client.execute_statement(
+                resourceArn=cluster_arn,
+                secretArn=secret_arn,
+                database=database_name,
+                sql="SELECT resumeId, jobId FROM Resume WHERE userId = :userId;",
+                parameters=[
+                    {'name': 'userId', 'value': {'longValue': user_id}}
+                ]
+            )
+            existing_resumes = response['records']
+
+            for record in existing_resumes:
+                existing_job_id = record[1]['longValue']
+                if existing_job_id == job_id:
+                    resume_id = record[0]['longValue']
+                    rds_data_client.execute_statement(
+                        resourceArn=cluster_arn,
+                        secretArn=secret_arn,
+                        database=database_name,
+                        sql="UPDATE Resume SET resumeUrl = :resumeUrl, updatedAt = CURRENT_TIMESTAMP WHERE resumeId = :resumeId;",
+                        parameters=[
+                            {'name': 'resumeUrl', 'value': {'stringValue': resume_url}},
+                            {'name': 'resumeId', 'value': {'longValue': resume_id}}
+                        ]
+                    )
+                    return resume_id
+
+            response = rds_data_client.execute_statement(
+                resourceArn=cluster_arn,
+                secretArn=secret_arn,
+                database=database_name,
+                sql="INSERT INTO Resume (userId, jobId, resumeUrl) VALUES (:userId, :jobId, :resumeUrl);",
+                parameters=[
+                    {'name': 'userId', 'value': {'longValue': user_id}},
+                    {'name': 'jobId', 'value': {'longValue': job_id}},
+                    {'name': 'resumeUrl', 'value': {'stringValue': resume_url}}
+                ],
+                includeResultMetadata=True
+            )
+            resume_id = response['generatedFields'][0]['longValue']
+            print(f"New resume record inserted with resumeId: {resume_id}")
+            return resume_id
+
+        else:
+            response = rds_data_client.execute_statement(
+                resourceArn=cluster_arn,
+                secretArn=secret_arn,
+                database=database_name,
+                sql="INSERT INTO Resume (userId, jobId, resumeUrl) VALUES (:userId, :jobId, :resumeUrl);",
+                parameters=[
+                    {'name': 'userId', 'value': {'longValue': user_id}},
+                    {'name': 'jobId', 'value': {'longValue': job_id}},
+                    {'name': 'resumeUrl', 'value': {'stringValue': resume_url}}
+                ],
+                includeResultMetadata=True
+            )
+            # Extract resumeId from the response
+            resume_id = response['generatedFields'][0]['longValue']
+            print(f"New resume record inserted with resumeId: {resume_id}")
+            return resume_id
+
     except Exception as e:
-        print(f"Error uploading resume record: {str(e)}")
+        print(f"Error processing resume record: {str(e)}")
         return None
 
 
