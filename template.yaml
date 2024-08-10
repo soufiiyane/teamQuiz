@@ -483,7 +483,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: src/application/
-      Handler: create.lambda_handler
+      Handler: upsert.lambda_handler
       Runtime: python3.10
       Role: !GetAtt RDSLambdaRole.Arn
       Policies:
@@ -523,19 +523,19 @@ Resources:
           SECRET_ARN: !Ref AuroraServerlessSecret
           DB_NAME: !Ref AuroraDBName
 
-  ReadQuizFunction:
+  QuizAnswersValidations:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: src/quiz/
-      Handler: read.lambda_handler
+      CodeUri: src/quizAnswersValidations/
+      Handler: quizAnswersValidations.lambda_handler
       Runtime: python3.10
       Role: !GetAtt RDSLambdaRole.Arn
       Events:
-        ReadQuiz:
+        validateQuiz:
           Type: Api
           Properties:
-            Path: /quiz/{quizId}
-            Method: get
+            Path: /validatequiz
+            Method: post
             RestApiId: !Ref teamQuizApi
       Environment:
         Variables:
@@ -543,45 +543,21 @@ Resources:
           SECRET_ARN: !Ref AuroraServerlessSecret
           DB_NAME: !Ref AuroraDBName
 
-  UpdateQuizFunction:
+  CognitoTokenRetriever:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: src/quiz/
-      Handler: update.lambda_handler
       Runtime: python3.10
-      Role: !GetAtt RDSLambdaRole.Arn
+      CodeUri: src/
+      Handler: cognitoTokenRetriever.lambda_handler
       Events:
-        UpdateQuiz:
+        getTokenApi:
           Type: Api
           Properties:
-            Path: /quiz/{quizId}
-            Method: put
-            RestApiId: !Ref teamQuizApi
+            Path: /token
+            Method: post
       Environment:
         Variables:
-          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
-          SECRET_ARN: !Ref AuroraServerlessSecret
-          DB_NAME: !Ref AuroraDBName
-
-  DeleteQuizFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: src/quiz/
-      Handler: delete.lambda_handler
-      Runtime: python3.10
-      Role: !GetAtt RDSLambdaRole.Arn
-      Events:
-        DeleteQuiz:
-          Type: Api
-          Properties:
-            Path: /quiz/{quizId}
-            Method: delete
-            RestApiId: !Ref teamQuizApi
-      Environment:
-        Variables:
-          CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
-          SECRET_ARN: !Ref AuroraServerlessSecret
-          DB_NAME: !Ref AuroraDBName
+          CLIENT_ID: !Ref teamQuizUserPoolClient
 
   CreateQuestionsFunction:
     Type: AWS::Serverless::Function
