@@ -7,7 +7,7 @@ Description: >
 Parameters:
   DomainName:
     Type: String
-    Default: "team-quiz"
+    Default: "teamquiz"
     Description: "The domain name for the Cognito User Pool."
   AuroraDBName:
     Type: String
@@ -215,10 +215,10 @@ Resources:
     Properties:
       BucketName: !Ref ResumeBucketName
       PublicAccessBlockConfiguration:
-        BlockPublicAcls: false
-        BlockPublicPolicy: false
-        IgnorePublicAcls: false
-        RestrictPublicBuckets: false
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
 
   MyS3BucketPolicy:
     Type: 'AWS::S3::BucketPolicy'
@@ -227,16 +227,11 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Sid: PublicReadGetObject
-            Effect: Allow
-            Principal: '*'
-            Action:
-              - 's3:GetObject'
-            Resource: !Join
-              - ''
-              - - 'arn:aws:s3:::'
-                - !Ref MyS3BucketResume
-                - '/*'
+          - Effect: Allow
+            Principal:
+              CanonicalUser: !GetAtt CloudFrontOriginAccessIdentity.S3CanonicalUserId
+            Action: 's3:GetObject'
+            Resource: !Sub "${MyS3BucketResume.Arn}/*"
 
   CreateCompanyFunction:
     Type: AWS::Serverless::Function
@@ -645,14 +640,13 @@ Resources:
       DistributionConfig:
         Origins:
           - Id: S3Origin
-            DomainName: !Sub "${MyS3BucketResume}.s3.amazonaws.com"
+            DomainName: !GetAtt MyS3BucketResume.RegionalDomainName
             S3OriginConfig:
               OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${CloudFrontOriginAccessIdentity}"
         Enabled: true
-        DefaultRootObject: index.html
         DefaultCacheBehavior:
           TargetOriginId: S3Origin
-          ViewerProtocolPolicy: redirect-to-https
+          ViewerProtocolPolicy: https-only
           AllowedMethods:
             - GET
             - HEAD
@@ -661,8 +655,14 @@ Resources:
             - GET
             - HEAD
           Compress: true
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
         ViewerCertificate:
           CloudFrontDefaultCertificate: true
+        HttpVersion: http2
+        PriceClass: PriceClass_100
 
   CloudFrontOriginAccessIdentity:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
