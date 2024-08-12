@@ -27,6 +27,23 @@ Parameters:
 
 Resources:
 
+  MySqsQueue:
+    Type: AWS::SQS::Queue
+    Metadata:
+      SamResourceId: MySqsQueue
+
+  MySnsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Protocol: sqs
+          Endpoint:
+            Fn::GetAtt:
+              - MySqsQueue
+              - Arn
+    Metadata:
+      SamResourceId: MySnsTopic
+
   PreSignUpFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -481,9 +498,6 @@ Resources:
       Handler: upsert.lambda_handler
       Runtime: python3.10
       Role: !GetAtt RDSLambdaRole.Arn
-      Policies:
-        - S3FullAccessPolicy:
-            BucketName: MyS3BucketResume
       Events:
         CreateApplication:
           Type: Api
@@ -522,9 +536,15 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: src/quizAnswersValidations/
-      Handler: quizAnswersValidations.lambda_handler
+      Handler: quizAnswersValidation.lambda_handler
       Runtime: python3.10
       Role: !GetAtt RDSLambdaRole.Arn
+      Policies:
+        - SNSPublishMessagePolicy:
+            TopicName:
+              Fn::GetAtt:
+                - MySnsTopic
+                - TopicName
       Events:
         validateQuiz:
           Type: Api
@@ -537,6 +557,9 @@ Resources:
           CLUSTER_ARN: !GetAtt AuroraServerlessCluster.DBClusterArn
           SECRET_ARN: !Ref AuroraServerlessSecret
           DB_NAME: !Ref AuroraDBName
+          SNS_TOPIC_ARN: !Ref MySnsTopic
+    Metadata:
+      SamResourceId: QuizAnswersValidations
 
   CognitoTokenRetriever:
     Type: AWS::Serverless::Function
@@ -684,6 +707,47 @@ Resources:
             Action: 's3:GetObject'
             Resource: !Sub "arn:aws:s3:::${MyS3BucketResume}/*"
 
+  SnsToSqsPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Allow SNS publish to SQS
+            Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Resource:
+              Fn::GetAtt:
+                - MySqsQueue
+                - Arn
+            Action: SQS:SendMessage
+            Condition:
+              ArnEquals:
+                aws:SourceArn:
+                  Ref: MySnsTopic
+      Queues:
+        - Ref: MySqsQueue
+    Metadata:
+      SamResourceId: SnsToSqsPolicy
+
+  SqsConsumerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: sqsConsumer.lambda_handler
+      Runtime: python3.10
+      Timeout: 10
+      MemorySize: 128
+      Policies:
+        - SQSPollerPolicy:
+            QueueName: !GetAtt MySqsQueue.QueueName
+      Events:
+        SqsEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt MySqsQueue.Arn
+            BatchSize: 10
 
 Outputs:
   ApiUrl:

@@ -3,7 +3,9 @@ import boto3
 import os
 
 rds_data_client = boto3.client('rds-data')
+sns_client = boto3.client('sns')
 
+sns_topic_arn = os.environ['SNS_TOPIC_ARN']
 cluster_arn = os.environ['CLUSTER_ARN']
 secret_arn = os.environ['SECRET_ARN']
 database_name = os.environ['DB_NAME']
@@ -15,7 +17,11 @@ def lambda_handler(event, context):
         quiz_id = body.get('quizId')
         user_id = body.get('userId')
         responses = body.get('responses', [])
-
+        message = {'message': 'Hello from Lambda'}
+        sns_client.publish(
+            TopicArn=sns_client,
+            Message=json.dumps(message)
+        )
         if quiz_id is None:
             return {
                 'statusCode': 400,
