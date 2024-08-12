@@ -99,6 +99,7 @@ CREATE TABLE QuizHistory (
     totalQuestions INT,
     scorePercentage DECIMAL(5, 2),
     notAnsweredOrFalse INT,
+    results JSON,
     FOREIGN KEY (userId) REFERENCES User(userId) ON DELETE CASCADE,
     FOREIGN KEY (quizId) REFERENCES Quiz(id) ON DELETE CASCADE
 );

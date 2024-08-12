@@ -125,6 +125,11 @@ def lambda_handler(event, context):
                 score DECIMAL(5, 2),
                 status VARCHAR(50),
                 date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                correctAnswers INT,
+                totalQuestions INT,
+                scorePercentage DECIMAL(5, 2),
+                notAnsweredOrFalse INT,
+                results JSON,
                 FOREIGN KEY (userId) REFERENCES User(userId) ON DELETE CASCADE,
                 FOREIGN KEY (quizId) REFERENCES Quiz(id) ON DELETE CASCADE
             );

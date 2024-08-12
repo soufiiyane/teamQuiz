@@ -19,7 +19,7 @@ def lambda_handler(event, context):
         responses = body.get('responses', [])
         message = {'message': 'Hello from Lambda'}
         sns_client.publish(
-            TopicArn=sns_client,
+            TopicArn=sns_topic_arn,
             Message=json.dumps(message)
         )
         if quiz_id is None:
