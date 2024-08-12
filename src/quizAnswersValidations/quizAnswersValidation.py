@@ -17,11 +17,6 @@ def lambda_handler(event, context):
         quiz_id = body.get('quizId')
         user_id = body.get('userId')
         responses = body.get('responses', [])
-        message = {'message': 'Hello from Lambda'}
-        sns_client.publish(
-            TopicArn=sns_topic_arn,
-            Message=json.dumps(message)
-        )
         if quiz_id is None:
             return {
                 'statusCode': 400,
@@ -60,6 +55,14 @@ def lambda_handler(event, context):
 
         store_quiz_history(user_id, quiz_id, score_percentage, 'Pass' if passed else 'Fail', correct_count,
                            total_questions, total_questions - correct_count, results)
+        if passed:
+            message = {
+                'message': f'Congratulations! You have passed with a score of {score_percentage}%.'
+            }
+            sns_client.publish(
+                TopicArn=sns_topic_arn,
+                Message=json.dumps(message)
+            )
 
         return {
             'statusCode': 200,

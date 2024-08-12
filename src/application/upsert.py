@@ -10,6 +10,7 @@ cluster_arn = os.environ['CLUSTER_ARN']
 secret_arn = os.environ['SECRET_ARN']
 database_name = os.environ['DB_NAME']
 s3_bucket_name = os.environ['RESUME_BUCKET']
+cloudfront_domain = os.environ['CLOUDFRONT_DOMAIN']
 
 
 def lambda_handler(event, context):
@@ -76,7 +77,7 @@ def upload_resume_to_s3(resume_file, user_id, job_id):
     try:
         resume_file_content = base64.b64decode(resume_file)
 
-        resume_file_name = f"resumeteamquiz2024_{user_id}_{job_id}.pdf"
+        resume_file_name = f"resumeteamquiz_{user_id}_{job_id}.pdf"
 
         s3_client.put_object(
             Bucket=s3_bucket_name,
@@ -85,8 +86,7 @@ def upload_resume_to_s3(resume_file, user_id, job_id):
             ContentType='application/pdf'
         )
 
-        resume_url = f"https://{s3_bucket_name}.s3.amazonaws.com/{resume_file_name}"
-        print(f"Resume uploaded successfully to S3 with URL: {resume_url}")
+        resume_url = f"https://{cloudfront_domain}/{resume_file_name}"
         return resume_url
     except Exception as e:
         print(f"Error uploading resume to S3: {str(e)}")
@@ -156,7 +156,6 @@ def find_or_update_resume(user_id, job_id, resume_url):
                 includeResultMetadata=True
             )
             resume_id = response['generatedFields'][0]['longValue']
-            print(f"New resume record inserted with resumeId: {resume_id}")
             return resume_id
 
     except Exception as e:

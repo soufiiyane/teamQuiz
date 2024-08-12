@@ -38,9 +38,7 @@ Resources:
       Subscription:
         - Protocol: sqs
           Endpoint:
-            Fn::GetAtt:
-              - MySqsQueue
-              - Arn
+            !GetAtt MySqsQueue.Arn
     Metadata:
       SamResourceId: MySnsTopic
 
@@ -511,6 +509,8 @@ Resources:
           SECRET_ARN: !Ref AuroraServerlessSecret
           DB_NAME: !Ref AuroraDBName
           RESUME_BUCKET: !Ref MyS3BucketResume
+          CLOUDFRONT_DOMAIN: !GetAtt CloudFrontDistribution.DomainName
+
 
   CreateQuizFunction:
     Type: AWS::Serverless::Function
@@ -727,7 +727,7 @@ Resources:
                 aws:SourceArn:
                   Ref: MySnsTopic
       Queues:
-        - Ref: MySqsQueue
+        - !Ref MySqsQueue
     Metadata:
       SamResourceId: SnsToSqsPolicy
 
