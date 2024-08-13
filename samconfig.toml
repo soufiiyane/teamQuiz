@@ -1,0 +1,9 @@
+version = 0.1
+[default.deploy.parameters]
+stack_name = "teamquiz"
+resolve_s3 = true
+s3_prefix = "teamquiz"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "DomainName=\"teamquiz\" AuroraDBName=\"teamquiz\" AuroraUsername=\"admin\" AuroraPassword=\"Soufiyane\" ResumeBucketName=\"teamquiz\""
+image_repositories = []

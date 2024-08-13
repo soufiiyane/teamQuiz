@@ -1,0 +1,1124 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'TeamQuiz IaC using AWS SAM
+
+  '
+Parameters:
+  DomainName:
+    Type: String
+    Default: teamquiz
+    Description: The domain name for the Cognito User Pool.
+  AuroraDBName:
+    Type: String
+    Default: teamquiz
+    Description: The Aurora Serverless database name.
+  AuroraUsername:
+    Type: String
+    Default: admin
+    Description: The Aurora Serverless database master username.
+  AuroraPassword:
+    Type: String
+    Default: Soufiyane
+    Description: The Aurora Serverless database master password.
+  ResumeBucketName:
+    Type: String
+    Description: The resume bucket name, it must be unique
+Resources:
+  MySqsQueue:
+    Type: AWS::SQS::Queue
+    Metadata:
+      SamResourceId: MySqsQueue
+  MySnsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+      - Protocol: sqs
+        Endpoint:
+          Fn::GetAtt:
+          - MySqsQueue
+          - Arn
+    Metadata:
+      SamResourceId: MySnsTopic
+  PreSignUpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: PreSignUpFunction
+      Handler: cognitoPreSignUp.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - RDSLambdaRole
+        - Arn
+      Policies:
+      - AWSLambdaBasicExecutionRole
+      - AWSLambdaRole
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+    Metadata:
+      SamResourceId: PreSignUpFunction
+  PreSignUpFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: PreSignUpFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+        - teamQuizUserPool
+        - Arn
+  teamQuizUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: team-quiz_pool
+      MfaConfiguration: 'OFF'
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+      UsernameAttributes:
+      - email
+      AutoVerifiedAttributes:
+      - email
+      Schema:
+      - AttributeDataType: String
+        Name: email
+        Required: true
+      - AttributeDataType: String
+        Name: given_name
+        Mutable: true
+        Required: true
+      - AttributeDataType: String
+        Name: family_name
+        Mutable: true
+        Required: true
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      EmailVerificationSubject: Please verify your email address
+      EmailVerificationMessage: Your verification code is {####}. Please enter this
+        code to verify your email address.
+      LambdaConfig:
+        PreSignUp:
+          Fn::GetAtt:
+          - PreSignUpFunction
+          - Arn
+  teamQuizUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: teamQuiz_client
+      UserPoolId:
+        Ref: teamQuizUserPool
+      GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+      - code
+      AllowedOAuthScopes:
+      - email
+      - openid
+      - profile
+      - aws.cognito.signin.user.admin
+      CallbackURLs:
+      - http://localhost
+      ExplicitAuthFlows:
+      - ALLOW_CUSTOM_AUTH
+      - ALLOW_ADMIN_USER_PASSWORD_AUTH
+      - ALLOW_USER_PASSWORD_AUTH
+      - ALLOW_USER_SRP_AUTH
+      - ALLOW_REFRESH_TOKEN_AUTH
+      SupportedIdentityProviders:
+      - COGNITO
+      RefreshTokenValidity: 30
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+  userPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId:
+        Ref: teamQuizUserPool
+      Domain:
+        Ref: DomainName
+  userPoolUICustomization:
+    Type: AWS::Cognito::UserPoolUICustomizationAttachment
+    DependsOn: userPoolDomain
+    Properties:
+      UserPoolId:
+        Ref: teamQuizUserPool
+      ClientId: ALL
+  AdminUserGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: Admins
+      Description: Admin user group
+      Precedence: 0
+      UserPoolId:
+        Ref: teamQuizUserPool
+  teamQuizApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors: '''*'''
+      Auth:
+        DefaultAuthorizer: MyCognitoAuthorizer
+        Authorizers:
+          MyCognitoAuthorizer:
+            UserPoolArn:
+              Fn::GetAtt:
+              - teamQuizUserPool
+              - Arn
+  AuroraServerlessCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: aurora-mysql
+      EngineMode: serverless
+      DatabaseName:
+        Ref: AuroraDBName
+      MasterUsername:
+        Ref: AuroraUsername
+      MasterUserPassword:
+        Ref: AuroraPassword
+      EnableHttpEndpoint: true
+      ScalingConfiguration:
+        MinCapacity: 1
+        MaxCapacity: 64
+        AutoPause: false
+    DeletionPolicy: Delete
+  AuroraServerlessSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Aurora Serverless credentials
+      SecretString:
+        Fn::Sub: "{\n  \"username\": \"${AuroraUsername}\",\n  \"password\": \"${AuroraPassword}\"\
+          \n}\n"
+  RDSLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+      - PolicyName: AuroraAccessPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - rds-data:BatchExecuteStatement
+            - rds-data:BeginTransaction
+            - rds-data:CommitTransaction
+            - rds-data:ExecuteStatement
+            - rds-data:RollbackTransaction
+            Resource:
+              Fn::Sub: arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraServerlessCluster}
+          - Effect: Allow
+            Action:
+            - secretsmanager:GetSecretValue
+            Resource:
+              Ref: AuroraServerlessSecret
+  InitializeDatabaseFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: InitializeDatabaseFunction
+      Handler: initializeDatabase.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - RDSLambdaRole
+        - Arn
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+    Metadata:
+      SamResourceId: InitializeDatabaseFunction
+  MyS3BucketResume:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Ref: ResumeBucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+  MyS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: MyS3BucketResume
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            CanonicalUser:
+              Fn::GetAtt:
+              - CloudFrontOriginAccessIdentity
+              - S3CanonicalUserId
+          Action: s3:GetObject
+          Resource:
+            Fn::Sub: ${MyS3BucketResume.Arn}/*
+  CreateCompanyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: CreateCompanyFunction
+      Handler: create.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - RDSLambdaRole
+        - Arn
+      Events:
+        CreateCompany:
+          Type: Api
+          Properties:
+            Path: /company
+            Method: post
+            RestApiId:
+              Ref: teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+    Metadata:
+      SamResourceId: CreateCompanyFunction
+  ReadCompanyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ReadCompanyFunction
+      Handler: read.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - RDSLambdaRole
+        - Arn
+      Events:
+        ReadCompany:
+          Type: Api
+          Properties:
+            Path: /company/{companyId}
+            Method: get
+            RestApiId:
+              Ref: teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+    Metadata:
+      SamResourceId: ReadCompanyFunction
+  UpdateCompanyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: UpdateCompanyFunction
+      Handler: update.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - RDSLambdaRole
+        - Arn
+      Events:
+        UpdateCompany:
+          Type: Api
+          Properties:
+            Path: /company/{companyId}
+            Method: put
+            RestApiId:
+              Ref: teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+    Metadata:
+      SamResourceId: UpdateCompanyFunction
+  DeleteCompanyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: DeleteCompanyFunction
+      Handler: delete.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - RDSLambdaRole
+        - Arn
+      Events:
+        DeleteCompany:
+          Type: Api
+          Properties:
+            Path: /company/{companyId}
+            Method: delete
+            RestApiId:
+              Ref: teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+    Metadata:
+      SamResourceId: DeleteCompanyFunction
+  CreateProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: CreateProfileFunction
+      Handler: create.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - RDSLambdaRole
+        - Arn
+      Events:
+        CreateProfile:
+          Type: Api
+          Properties:
+            Path: /profile
+            Method: post
+            RestApiId:
+              Ref: teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+    Metadata:
+      SamResourceId: CreateProfileFunction
+  ReadProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ReadProfileFunction
+      Handler: read.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - RDSLambdaRole
+        - Arn
+      Events:
+        ReadProfile:
+          Type: Api
+          Properties:
+            Path: /profile/{profileId}
+            Method: get
+            RestApiId:
+              Ref: teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+    Metadata:
+      SamResourceId: ReadProfileFunction
+  UpdateProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: UpdateProfileFunction
+      Handler: update.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - RDSLambdaRole
+        - Arn
+      Events:
+        UpdateProfile:
+          Type: Api
+          Properties:
+            Path: /profile/{profileId}
+            Method: put
+            RestApiId:
+              Ref: teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+    Metadata:
+      SamResourceId: UpdateProfileFunction
+  DeleteProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: DeleteProfileFunction
+      Handler: delete.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - RDSLambdaRole
+        - Arn
+      Events:
+        DeleteProfile:
+          Type: Api
+          Properties:
+            Path: /profile/{profileId}
+            Method: delete
+            RestApiId:
+              Ref: teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+    Metadata:
+      SamResourceId: DeleteProfileFunction
+  CreateJobFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: CreateJobFunction
+      Handler: create.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - RDSLambdaRole
+        - Arn
+      Events:
+        CreateJob:
+          Type: Api
+          Properties:
+            Path: /job
+            Method: post
+            RestApiId:
+              Ref: teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+    Metadata:
+      SamResourceId: CreateJobFunction
+  ReadJobFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ReadJobFunction
+      Handler: read.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - RDSLambdaRole
+        - Arn
+      Events:
+        ReadJob:
+          Type: Api
+          Properties:
+            Path: /job/{jobId}
+            Method: get
+            RestApiId:
+              Ref: teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+    Metadata:
+      SamResourceId: ReadJobFunction
+  UpdateJobFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: UpdateJobFunction
+      Handler: update.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - RDSLambdaRole
+        - Arn
+      Events:
+        UpdateJob:
+          Type: Api
+          Properties:
+            Path: /job/{jobId}
+            Method: put
+            RestApiId:
+              Ref: teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+    Metadata:
+      SamResourceId: UpdateJobFunction
+  DeleteJobFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: DeleteJobFunction
+      Handler: delete.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - RDSLambdaRole
+        - Arn
+      Events:
+        DeleteJob:
+          Type: Api
+          Properties:
+            Path: /job/{jobId}
+            Method: delete
+            RestApiId:
+              Ref: teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+    Metadata:
+      SamResourceId: DeleteJobFunction
+  CreateApplicationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: CreateApplicationFunction
+      Handler: upsert.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - S3RDSRole
+        - Arn
+      Events:
+        CreateApplication:
+          Type: Api
+          Properties:
+            Path: /application
+            Method: post
+            RestApiId:
+              Ref: teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+          RESUME_BUCKET:
+            Ref: MyS3BucketResume
+          CLOUDFRONT_DOMAIN:
+            Fn::GetAtt:
+            - CloudFrontDistribution
+            - DomainName
+    Metadata:
+      SamResourceId: CreateApplicationFunction
+  CreateQuizFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: CreateQuizFunction
+      Handler: create.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - RDSLambdaRole
+        - Arn
+      Events:
+        CreateQuiz:
+          Type: Api
+          Properties:
+            Path: /quiz
+            Method: post
+            RestApiId:
+              Ref: teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+    Metadata:
+      SamResourceId: CreateQuizFunction
+  QuizAnswersValidations:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: QuizAnswersValidations
+      Handler: quizAnswersValidation.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - SNSRDSRole
+        - Arn
+      Policies:
+      - SNSPublishMessagePolicy:
+          TopicName:
+            Fn::GetAtt:
+            - MySnsTopic
+            - TopicName
+      Events:
+        validateQuiz:
+          Type: Api
+          Properties:
+            Path: /validatequiz
+            Method: post
+            RestApiId:
+              Ref: teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+          SNS_TOPIC_ARN:
+            Ref: MySnsTopic
+    Metadata:
+      SamResourceId: QuizAnswersValidations
+  CognitoTokenRetriever:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: python3.10
+      CodeUri: CognitoTokenRetriever
+      Handler: cognitoTokenRetriever.lambda_handler
+      Events:
+        getTokenApi:
+          Type: Api
+          Properties:
+            Path: /token
+            Method: post
+      Environment:
+        Variables:
+          CLIENT_ID:
+            Ref: teamQuizUserPoolClient
+    Metadata:
+      SamResourceId: CognitoTokenRetriever
+  CreateQuestionsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: CreateQuestionsFunction
+      Handler: create.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - RDSLambdaRole
+        - Arn
+      Events:
+        CreateQuestions:
+          Type: Api
+          Properties:
+            Path: /questions
+            Method: post
+            RestApiId:
+              Ref: teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+    Metadata:
+      SamResourceId: CreateQuestionsFunction
+  ReadQuestionsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ReadQuestionsFunction
+      Handler: read.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - RDSLambdaRole
+        - Arn
+      Events:
+        ReadQuestions:
+          Type: Api
+          Properties:
+            Path: /questions/{questionsId}
+            Method: get
+            RestApiId:
+              Ref: teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+    Metadata:
+      SamResourceId: ReadQuestionsFunction
+  UpdateQuestionsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: UpdateQuestionsFunction
+      Handler: update.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - RDSLambdaRole
+        - Arn
+      Events:
+        UpdateQuestions:
+          Type: Api
+          Properties:
+            Path: /questions/{questionsId}
+            Method: put
+            RestApiId:
+              Ref: teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+    Metadata:
+      SamResourceId: UpdateQuestionsFunction
+  DeleteQuestionsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: DeleteQuestionsFunction
+      Handler: delete.lambda_handler
+      Runtime: python3.10
+      Role:
+        Fn::GetAtt:
+        - RDSLambdaRole
+        - Arn
+      Events:
+        DeleteQuestions:
+          Type: Api
+          Properties:
+            Path: /questions/{questionsId}
+            Method: delete
+            RestApiId:
+              Ref: teamQuizApi
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::GetAtt:
+            - AuroraServerlessCluster
+            - DBClusterArn
+          SECRET_ARN:
+            Ref: AuroraServerlessSecret
+          DB_NAME:
+            Ref: AuroraDBName
+    Metadata:
+      SamResourceId: DeleteQuestionsFunction
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Origins:
+        - Id: S3Origin
+          DomainName:
+            Fn::GetAtt:
+            - MyS3BucketResume
+            - RegionalDomainName
+          S3OriginConfig:
+            OriginAccessIdentity:
+              Fn::Sub: origin-access-identity/cloudfront/${CloudFrontOriginAccessIdentity}
+        Enabled: true
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: https-only
+          AllowedMethods:
+          - GET
+          - HEAD
+          - OPTIONS
+          CachedMethods:
+          - GET
+          - HEAD
+          Compress: true
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+  CloudFrontOriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: Access identity for S3 bucket
+  MyS3BucketPolicyForCloudFront:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: MyS3BucketResume
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: CloudFrontAccess
+          Effect: Allow
+          Principal:
+            AWS:
+              Fn::Sub: arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity
+                ${CloudFrontOriginAccessIdentity}
+          Action: s3:GetObject
+          Resource:
+            Fn::Sub: arn:aws:s3:::${MyS3BucketResume}/*
+  SnsToSqsPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: Allow SNS publish to SQS
+          Effect: Allow
+          Principal:
+            Service: sns.amazonaws.com
+          Resource:
+            Fn::GetAtt:
+            - MySqsQueue
+            - Arn
+          Action: SQS:SendMessage
+          Condition:
+            ArnEquals:
+              aws:SourceArn:
+                Ref: MySnsTopic
+      Queues:
+      - Ref: MySqsQueue
+    Metadata:
+      SamResourceId: SnsToSqsPolicy
+  SqsConsumerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: SqsConsumerFunction
+      Handler: sqsConsumer.process_sqs_message
+      Runtime: python3.10
+      Timeout: 10
+      MemorySize: 128
+      Policies:
+      - SQSPollerPolicy:
+          QueueName:
+            Fn::GetAtt:
+            - MySqsQueue
+            - QueueName
+      Events:
+        SqsEvent:
+          Type: SQS
+          Properties:
+            Queue:
+              Fn::GetAtt:
+              - MySqsQueue
+              - Arn
+            BatchSize: 10
+    Metadata:
+      SamResourceId: SqsConsumerFunction
+  S3RDSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+      - PolicyName: AuroraAccessPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - rds-data:BatchExecuteStatement
+            - rds-data:BeginTransaction
+            - rds-data:CommitTransaction
+            - rds-data:ExecuteStatement
+            - rds-data:RollbackTransaction
+            Resource:
+              Fn::Sub: arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraServerlessCluster}
+          - Effect: Allow
+            Action:
+            - secretsmanager:GetSecretValue
+            Resource:
+              Ref: AuroraServerlessSecret
+          - Effect: Allow
+            Action:
+            - s3:*
+            - s3-object-lambda:*
+            Resource: '*'
+  SNSRDSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+      - PolicyName: AuroraAccessPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - rds-data:BatchExecuteStatement
+            - rds-data:BeginTransaction
+            - rds-data:CommitTransaction
+            - rds-data:ExecuteStatement
+            - rds-data:RollbackTransaction
+            Resource:
+              Fn::Sub: arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AuroraServerlessCluster}
+          - Effect: Allow
+            Action:
+            - secretsmanager:GetSecretValue
+            Resource:
+              Ref: AuroraServerlessSecret
+          - Effect: Allow
+            Action:
+            - sns:Publish
+            - sns:Subscribe
+            - sns:Receive
+            - sns:ListSubscriptions
+            - sns:ListSubscriptionsByTopic
+            - sns:ListSubscriptions
+            - sns:ListSubscriptionsByTopic
+            - sns:ListSubscriptions
+            Resource: '*'
+Outputs:
+  ApiUrl:
+    Description: URL of the API Gateway
+    Value:
+      Fn::Sub: https://${teamQuizApi}.execute-api.${AWS::Region}.amazonaws.com/Prod
+  UserPoolId:
+    Description: ID of the Cognito User Pool
+    Value:
+      Ref: teamQuizUserPool
+  UserPoolClientId:
+    Description: ID of the Cognito User Pool Client
+    Value:
+      Ref: teamQuizUserPoolClient
+  UserPoolDomain:
+    Description: Domain name for the Cognito User Pool
+    Value:
+      Fn::Sub: https://${DomainName}.auth.${AWS::Region}.amazoncognito.com
+  UserPoolHostUI:
+    Description: URL for Cognito User Pool Hosted UI
+    Value:
+      Fn::Sub: https://${DomainName}.auth.${AWS::Region}.amazoncognito.com/oauth2/authorize?response_type=code&client_id=${teamQuizUserPoolClient}&redirect_uri=http://localhost
+  AuroraClusterEndpoint:
+    Description: Endpoint of the Aurora Serverless Cluster
+    Value:
+      Fn::GetAtt:
+      - AuroraServerlessCluster
+      - Endpoint.Address
+  AuroraClusterPort:
+    Description: Port of the Aurora Serverless Cluster
+    Value:
+      Fn::GetAtt:
+      - AuroraServerlessCluster
+      - Endpoint.Port
+  AuroraClusterArn:
+    Description: ARN of the Aurora Serverless Cluster
+    Value:
+      Fn::GetAtt:
+      - AuroraServerlessCluster
+      - DBClusterArn
+  AuroraSecretArn:
+    Description: ARN of the Aurora Serverless Secret
+    Value:
+      Ref: AuroraServerlessSecret
+  ResumeBucketName:
+    Description: Name of the S3 bucket for resumes
+    Value:
+      Ref: MyS3BucketResume
+  ResumeBucketUrl:
+    Description: URL of the S3 bucket for resumes
+    Value:
+      Fn::Sub: https://${MyS3BucketResume}.s3.amazonaws.com
+  RDSLambdaRoleArn:
+    Description: ARN of the IAM Role for Lambda functions to access RDS
+    Value:
+      Fn::GetAtt:
+      - RDSLambdaRole
+      - Arn
+  CloudFrontDistributionDomainName:
+    Description: The domain name of the CloudFront distribution
+    Value:
+      Fn::GetAtt:
+      - CloudFrontDistribution
+      - DomainName
