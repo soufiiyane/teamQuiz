@@ -122,8 +122,8 @@ Resources:
       SupportedIdentityProviders:
         - COGNITO
       RefreshTokenValidity: 30
-      AccessTokenValidity: 1
-      IdTokenValidity: 1
+      AccessTokenValidity: 5
+      IdTokenValidity: 5
 
   userPoolDomain:
     Type: AWS::Cognito::UserPoolDomain
@@ -561,6 +561,15 @@ Resources:
     Metadata:
       SamResourceId: QuizAnswersValidations
 
+  MyApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors:
+        AllowMethods: "'OPTIONS,POST'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+
   CognitoTokenRetriever:
     Type: AWS::Serverless::Function
     Properties:
@@ -573,6 +582,7 @@ Resources:
           Properties:
             Path: /token
             Method: post
+            RestApiId: !Ref MyApi
       Environment:
         Variables:
           CLIENT_ID: !Ref teamQuizUserPoolClient
